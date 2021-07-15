@@ -1,6 +1,7 @@
 package com.pt.eventBus.custom.test;
 
 import com.pt.eventBus.custom.PtBus;
+import org.junit.Test;
 
 /**
  * @author nate-pt
@@ -16,5 +17,13 @@ public class Demo1 {
         ptBus.send(1);
         ptBus.send("33333");
         ptBus.send(22222);
+    }
+
+    @Test
+    public void exec1(){
+        PtBus build = PtBus.getBuilder().build();
+
+        build.register(new DemoListener());
+        build.sendPool("1111");
     }
 }

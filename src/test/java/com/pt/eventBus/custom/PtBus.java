@@ -1,7 +1,5 @@
 package com.pt.eventBus.custom;
 
-import lombok.Builder;
-import lombok.Data;
 import org.springframework.util.CollectionUtils;
 
 import java.lang.reflect.InvocationTargetException;
@@ -32,24 +30,33 @@ public class PtBus {
     private ThreadPoolExecutor executor;
 
 
-
-
-
-
-    public static PtBus getInstance(){
+    public static PtBus getInstance() {
         return new PtBus();
     }
 
+    public static PtBusBuild getBuilder(){
+        return PtBusBuild.getInstance();
+    }
 
-    private PtBus(){
+    private PtBus() {
 
+    }
+
+    public PtBus(int a, int b, long c, TimeUnit d, LinkedBlockingDeque e) {
+        this.executor = new ThreadPoolExecutor(a, b, c, d, e);
+        // 增加守护线程用来关闭当前线程,在程序终止的时候触发
+        Runtime.getRuntime().addShutdownHook(new Thread(()->{
+            this.executor.shutdownNow();
+        }));
     }
 
     /**
      * 订阅事件
+     *
      * @param objects
      */
-    public void send(Object... objects){
+    @Deprecated
+    public void send(Object... objects) {
         Object[] paramTypes = new Object[objects.length];
         for (int i = 0; i < objects.length; i++) {
             paramTypes[i] = objects[i].getClass();
@@ -67,19 +74,19 @@ public class PtBus {
         Object o = methodVo.getO();
         Method method = methodVo.getMethod();
         if (ThreadMode.ASYNC.equals(threadMode)) {
-            new Thread(()->{
+            new Thread(() -> {
                 try {
-                    method.invoke(o,objects);
+                    method.invoke(o, objects);
                 } catch (IllegalAccessException e) {
                     e.printStackTrace();
                 } catch (InvocationTargetException e) {
                     e.printStackTrace();
                 }
-            },"【PtBus】").start();
-        }else {
+            }, "【PtBus】").start();
+        } else {
             // 主线程执行
             try {
-                method.invoke(o,objects);
+                method.invoke(o, objects);
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
             } catch (InvocationTargetException e) {
@@ -90,17 +97,62 @@ public class PtBus {
 
     /**
      * 利用线程池驱动
+     *
      * @param params
      */
-    public void sendPool(Object... params){
+    public void sendPool(Object... params) {
+        // 如果当前线程池没有值得话不往下走了
+        if (this.executor == null) {
+            Consumer consumer = System.err::println;
+            consumer.accept("线程池为进行初始化");
+            return;
+        }
         // 将参数进行类型转换
+        List<? extends Class<?>> collect = Arrays.stream(params).map(o -> o.getClass()).collect(Collectors.toList());
+        // 所有参数的集合
+        Object[] paramTypes = collect.toArray();
+
+        List<MethodVo> methodVoList = methodVos.stream().filter(methodVo -> methodVo.check(paramTypes)).collect(Collectors.toList());
+
+        if (CollectionUtils.isEmpty(methodVoList)) {
+            Consumer consumer = System.err::println;
+            consumer.accept("无事件进行绑定....");
+            return;
+        }
+
+        methodVoList.forEach(methodVo -> {
+            Object o = methodVo.getO();
+            Method method = methodVo.getMethod();
+            try {
+                if (ThreadMode.ASYNC.equals(methodVo.getThreadMode())) {
+                    this.executor.execute(()->{
+                        try {
+                            method.invoke(o,params);
+                        } catch (IllegalAccessException e) {
+                            e.printStackTrace();
+                        } catch (InvocationTargetException e) {
+                            e.printStackTrace();
+                        }
+                    });
+                }else {
+                    method.invoke(o,params);
+                }
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            } catch (InvocationTargetException e) {
+                e.printStackTrace();
+            }
+        });
+
+
     }
 
     /**
      * 将监听器进行注册
+     *
      * @param o
      */
-    public void register(Object o){
+    public void register(Object o) {
         Class<?> aClass = o.getClass();
 
         // 监听器中含有WokerShecle注解的方法进行解析
@@ -126,8 +178,79 @@ public class PtBus {
     }
 
 
-
-
+//    /**
+//     * 事件驱动构造器
+//     */
+//      final class PtBusBuild {
+//
+//        private PtBusBuild (){
+//
+//        }
+//
+//
+//        /**
+//         * 工作线程数
+//         */
+//        private int corePoolSize;
+//        /**
+//         * 最大线程数量
+//         */
+//        private int maxPoolSize;
+//
+//        /**
+//         * 最大超时时间
+//         */
+//        private long keepAliveTime;
+//
+//        /**
+//         * 等待时间单位
+//         */
+//        private TimeUnit unit;
+//
+//        private  final int COREPOOLSIZE_DEAFALUT = 2;
+//        private  final int MAXPOOLSIZE_DEAFALUT = 5;
+//        private  final long KEEPALIVETIME_DEAFALUT = 3;
+//        private  final TimeUnit UNIT_DEAFALUT = TimeUnit.SECONDS;
+//        private  final LinkedBlockingDeque LINKEDBLOCKINGDEQUE_DEAFALUT = new LinkedBlockingDeque(5);
+//
+//
+//        private LinkedBlockingDeque linkedBlockingDeque;
+//
+//
+//        public PtBusBuild corePoolSize(int corePoolSize) {
+//            this.corePoolSize = corePoolSize;
+//            return this;
+//        }
+//
+//        public PtBusBuild maxPoolSize(int corePoolSize) {
+//            this.maxPoolSize = maxPoolSize;
+//            return this;
+//        }
+//
+//        public PtBusBuild keepAliveTime(long keepAliveTime) {
+//            this.keepAliveTime = keepAliveTime;
+//            return this;
+//        }
+//
+//        public PtBusBuild unit(TimeUnit unit) {
+//            this.unit = unit;
+//            return this;
+//        }
+//
+//        public PtBusBuild linkedBlockingDeque(LinkedBlockingDeque linkedBlockingDeque) {
+//            this.linkedBlockingDeque = linkedBlockingDeque;
+//            return this;
+//        }
+//
+//
+//        public PtBus build() {
+//            return new PtBus(this.corePoolSize == 0 ? COREPOOLSIZE_DEAFALUT : this.corePoolSize,
+//                    this.maxPoolSize == 0 ? MAXPOOLSIZE_DEAFALUT : this.maxPoolSize,
+//                    this.keepAliveTime == 0L ? KEEPALIVETIME_DEAFALUT : this.keepAliveTime,
+//                    this.unit == null ? UNIT_DEAFALUT : this.unit,
+//                    this.linkedBlockingDeque == null ? LINKEDBLOCKINGDEQUE_DEAFALUT : this.linkedBlockingDeque);
+//        }
+//    }
 
 
 }
