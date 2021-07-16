@@ -26,4 +26,32 @@ public class Demo1 {
         build.register(new DemoListener());
         build.sendPool("1111");
     }
+
+    @Test
+    public void exec2(){
+        int temp = 100| 0|23;
+        System.out.println(temp);
+
+        boolean flag = true| false;
+
+        flag|=false;
+
+        System.out.println(flag);
+
+        int zz = 0|3|1;
+        zz |=7;
+        System.out.println(zz);
+
+        flag^=false;
+        System.out.println(flag);
+
+
+        int zc = 625|1;
+        System.out.println(zc);
+
+
+
+
+
+    }
 }
